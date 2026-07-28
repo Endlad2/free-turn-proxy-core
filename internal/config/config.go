@@ -78,15 +78,6 @@ type ProxyOpts struct {
 	Peer    string    // -peer: адрес серверного прокси, куда дозванивается клиент (только клиент)
 }
 
-// Browser выбирает браузерный профиль для control-plane запросов VK-провайдера.
-type Browser string
-
-const (
-	BrowserChrome  Browser = "chrome"
-	BrowserFirefox Browser = "firefox"
-	BrowserSafari  Browser = "safari"
-)
-
 // Platform выбирает класс устройства персоны (мобильность UA/device/client hints).
 type Platform string
 
@@ -100,7 +91,6 @@ type VKOpts struct {
 	Links          []string // -links (нормализованные join-коды); несколько = больше стримов
 	StreamsPerCred int      // -streams-per-cred
 	ManualCaptcha  bool     // -manual-captcha
-	Browser        Browser  // -browser: chrome | firefox | safari
 	Platform       Platform // -platform: desktop | mobile
 }
 
@@ -200,7 +190,6 @@ func ParseClient(args []string, errOut io.Writer) (*Client, error) {
 	streamsPerCred := fs.Int("streams-per-cred", defaultStreamsPerCache, "TURN-потоков на один кеш VK-creds; только -provider vk")
 	debug := fs.Bool("debug", false, "подробные debug-логи")
 	manualCaptcha := fs.Bool("manual-captcha", false, "ручная VK captcha в браузере вместо авто; только -provider vk")
-	browser := fs.String("browser", string(BrowserFirefox), "браузерный профиль VK-auth: chrome | firefox | safari; только -provider vk")
 	platform := fs.String("platform", string(PlatformDesktop), "класс устройства персоны VK-auth: desktop | mobile; только -provider vk")
 	dnsMode := fs.String("dns-mode", dnsModeAuto, "резолвер клиента: plain | doh | auto")
 	dnsServers := fs.String("dns-servers", "", "свои UDP/53 DNS через запятую: ip[:port][,ip[:port]...]")
@@ -234,7 +223,6 @@ func ParseClient(args []string, errOut io.Writer) (*Client, error) {
 		VK: VKOpts{
 			StreamsPerCred: *streamsPerCred,
 			ManualCaptcha:  *manualCaptcha,
-			Browser:        Browser(*browser),
 			Platform:       Platform(*platform),
 		},
 		DNS: DNSOpts{
@@ -344,11 +332,6 @@ func ParseClient(args []string, errOut io.Writer) (*Client, error) {
 		}
 		if c.VK.StreamsPerCred <= 0 {
 			return nil, fmt.Errorf("-streams-per-cred must be positive")
-		}
-		switch c.VK.Browser {
-		case BrowserChrome, BrowserFirefox, BrowserSafari:
-		default:
-			return nil, fmt.Errorf("invalid -browser value %q: must be %s | %s | %s", c.VK.Browser, BrowserChrome, BrowserFirefox, BrowserSafari)
 		}
 		if c.VK.Platform == "" {
 			c.VK.Platform = PlatformDesktop
