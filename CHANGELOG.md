@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.0.0](https://github.com/samosvalishe/free-turn-proxy/compare/v1.8.0...v2.0.0) (2026-07-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* **captcha:** флаг -browser убран, семейство персоны всегда Chrome - только Chromium даёт NetworkInformation и Generic Sensors, без которых телеметрия captcha неполна. Класс устройства по-прежнему за -platform.
+
+### Features
+
+* **captcha:** телеметрия виджета и одна Chrome-персона на установку ([3211ed9](https://github.com/samosvalishe/free-turn-proxy/commit/3211ed9ad56b5e6ed6cfe679e000da197e17437d))
+
+
+### Bug Fixes
+
+* update deps for vuln pass ([34746e2](https://github.com/samosvalishe/free-turn-proxy/commit/34746e27e03a31ccdcdb8f481414b7e6a6177b55))
+
 ## [1.8.0](https://github.com/samosvalishe/free-turn-proxy/compare/v1.7.3...v1.8.0) (2026-07-13)
 
 
