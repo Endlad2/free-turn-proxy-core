@@ -144,17 +144,18 @@ jobs:
           BODY=$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json body -q .body | head -c 3000)
           URL=$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json url -q .url)
           # GH-markdown -> Telegram-HTML: сначала экранируем HTML, потом размечаем.
-          # Хвосты "by @user in <PR-url>" из авто-нотов убираем - в посте это шум.
+          # Хвосты "by @user in <PR-url>" и ссылки на коммит из авто-нотов убираем - в посте это шум.
           HTML=$(printf '%s' "$BODY" \
             | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' \
             | sed -E \
                 -e 's| by @[[:alnum:]_-]+ in https://[^[:space:]]+||g' \
+                -e 's|[[:space:]]*\(\[[0-9a-f]{6,}\]\(https?://[^)]+/commit/[^)]+\)\)||g' \
                 -e 's|\[([^]]+)\]\((https?://[^)]+)\)|<a href="\2">\1</a>|g' \
                 -e 's|\*\*([^*]+)\*\*|<b>\1</b>|g' \
                 -e 's|`([^`]+)`|<code>\1</code>|g' \
                 -e 's|^#{1,6}[[:space:]]+(.*)$|<b>\1</b>|' \
                 -e 's|^[-*][[:space:]]+|• |')
-          TEXT=$(printf '🚀 <b>FreeTurn %s</b>\n\n%s\n\n<a href="%s">Релиз на GitHub</a>' "$GITHUB_REF_NAME" "$HTML" "$URL")
+          TEXT=$(printf '🐒💨 <b>FreeTurn (Go) %s</b>\n\n%s\n\n<a href="%s">Релиз на GitHub</a>' "$GITHUB_REF_NAME" "$HTML" "$URL")
           send() {
             curl -fsS -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
               --data-urlencode "chat_id=${CHAT_ID}" \
