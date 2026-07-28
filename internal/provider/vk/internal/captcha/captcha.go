@@ -73,10 +73,12 @@ type captchaCheck struct {
 	Status       string
 	SuccessToken string
 	ShowType     string
+	Content      captchaContentRef
 }
 
 type captchaShowTypeError struct {
 	ShowType string
+	Content  captchaContentRef
 }
 
 func (e *captchaShowTypeError) Error() string {
@@ -218,6 +220,9 @@ func (s *captchaSession) solveOnce(captchaErr *Error) (string, error) {
 		return "", fmt.Errorf("unsupported captcha type: %s", showType)
 	}
 	if err != nil {
+		token, err = s.escalate(captchaErr.SessionToken, sliderContent, err)
+	}
+	if err != nil {
 		// Живой посетитель, уходя с нерешённой captcha, закрывает виджет.
 		if _, leaveErr := s.captchaRequest("captchaNotRobot.leaveCaptcha", base); leaveErr != nil {
 			s.logger().Debugf("[Captcha] leaveCaptcha failed: %v", leaveErr)
@@ -229,6 +234,28 @@ func (s *captchaSession) solveOnce(captchaErr *Error) (string, error) {
 		s.logger().Warnf("[Captcha] endSession failed: %v", endErr)
 	}
 	return token, nil
+}
+
+// escalate добивает сессию, если VK на check-е сменил тип челленджа: виджет в
+// браузере дорисовывает слайдер на месте, а не переоткрывает captcha.
+func (s *captchaSession) escalate(sessionToken string, initContent captchaContentRef, cause error) (string, error) {
+	var mismatch *captchaShowTypeError
+	if !errors.As(cause, &mismatch) || !strings.EqualFold(mismatch.ShowType, "slider") {
+		return "", cause
+	}
+	content := mismatch.Content
+	if content.Value == "" {
+		content = initContent
+	}
+	if content.Value == "" {
+		return "", cause
+	}
+	s.logger().Debugf("[Captcha] escalated to slider in-session (content source=%s)", content.Source)
+	// Перерисовка виджета плюс пауза на осознание.
+	if err := s.dwell(500, 1100); err != nil {
+		return "", err
+	}
+	return s.solveSliderCaptcha(sessionToken, content)
 }
 
 // dwell выдерживает паузу [minMs, maxMs): телеметрия виджета тикает по таймеру,
@@ -250,19 +277,25 @@ func parseCaptchaInitSession(raw map[string]any) (string, captchaContentRef) {
 	if !ok {
 		return "", captchaContentRef{}
 	}
-	showType := captchaStringifyAny(resp["show_captcha_type"])
+	return captchaStringifyAny(resp["show_captcha_type"]), parseSliderContentRef(resp["content_settings"])
+}
+
+func parseSliderContentRef(raw any) captchaContentRef {
 	content := captchaContentRef{}
-	if data, err := json.Marshal(resp["content_settings"]); err == nil {
-		var settings []captchaInitSetting
-		if json.Unmarshal(data, &settings) == nil {
-			for _, setting := range settings {
-				if setting.Type == "slider" {
-					content = setting.contentRef()
-				}
-			}
+	data, err := json.Marshal(raw)
+	if err != nil {
+		return content
+	}
+	var settings []captchaInitSetting
+	if json.Unmarshal(data, &settings) != nil {
+		return content
+	}
+	for _, setting := range settings {
+		if setting.Type == "slider" {
+			content = setting.contentRef()
 		}
 	}
-	return showType, content
+	return content
 }
 
 type captchaContentRef struct {
@@ -456,6 +489,7 @@ func parseCaptchaCheck(raw map[string]any) (*captchaCheck, error) {
 		Status:       captchaStringifyAny(resp["status"]),
 		SuccessToken: captchaStringifyAny(resp["success_token"]),
 		ShowType:     captchaStringifyAny(resp["show_captcha_type"]),
+		Content:      parseSliderContentRef(resp["content_settings"]),
 	}
 	if out.Status == "" {
 		return nil, fmt.Errorf("captcha check status missing: %v", raw)
@@ -513,7 +547,7 @@ func (s *captchaSession) solveCheckboxCaptcha(sessionToken string) (string, erro
 		return "", err
 	}
 	if check.ShowType != "" && !strings.EqualFold(check.ShowType, "checkbox") {
-		return "", &captchaShowTypeError{ShowType: check.ShowType}
+		return "", &captchaShowTypeError{ShowType: check.ShowType, Content: check.Content}
 	}
 	if strings.EqualFold(check.Status, "error_limit") {
 		return "", errCaptchaRateLimit
