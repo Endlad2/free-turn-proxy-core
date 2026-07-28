@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1](https://github.com/samosvalishe/free-turn-proxy/compare/v2.0.0...v2.0.1) (2026-07-28)
+
+
+### Bug Fixes
+
+* **captcha:** дожимать эскалацию checkbox -&gt; slider в той же сессии ([d1b769a](https://github.com/samosvalishe/free-turn-proxy/commit/d1b769a0625a6d706e1cda8f6df6ab80871df856))
+
 ## [2.0.0](https://github.com/samosvalishe/free-turn-proxy/compare/v1.8.0...v2.0.0) (2026-07-28)
 
 
