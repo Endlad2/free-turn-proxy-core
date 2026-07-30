@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.2](https://github.com/samosvalishe/free-turn-proxy/compare/v2.0.1...v2.0.2) (2026-07-30)
+
+
+### Bug Fixes
+
+* **captcha:** адаптация под новую версию виджета ([7c28498](https://github.com/samosvalishe/free-turn-proxy/commit/7c28498f2336967008e41542389f29c5637b6795))
+
 ## [2.0.1](https://github.com/samosvalishe/free-turn-proxy/compare/v2.0.0...v2.0.1) (2026-07-28)
 
 
