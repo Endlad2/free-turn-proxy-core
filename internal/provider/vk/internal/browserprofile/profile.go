@@ -231,3 +231,7 @@ func ApplyFhttp(req *fhttp.Request, profile Profile) {
 	req.Header.Set("Priority", "u=1, i")
 	req.Header[fhttp.HeaderOrderKey] = chromeHeaderOrder
 }
+
+func ApplyProxyFhttp(req *fhttp.Request) {
+	req.Header[fhttp.HeaderOrderKey] = chromeHeaderOrder
+}

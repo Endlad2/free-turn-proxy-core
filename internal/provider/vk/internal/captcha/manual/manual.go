@@ -444,7 +444,7 @@ func solveViaProxy(ctx context.Context, redirectURI string, dialer net.Dialer, p
 	if err != nil {
 		return "", fmt.Errorf("captcha proxy client: %w", err)
 	}
-	transport := &loggingTransport{rt: personanet.RoundTripper(client, profile)}
+	transport := &loggingTransport{rt: personanet.ProxyRoundTripper(client)}
 
 	proxy := &httputil.ReverseProxy{
 		Transport: transport,

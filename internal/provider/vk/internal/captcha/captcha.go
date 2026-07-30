@@ -35,10 +35,10 @@ const (
 	captchaAPIOrigin  = "https://id.vk.ru"
 	captchaDomain     = "vk.ru"
 
-	// captchaDebugInfoFallback - константа виджета из not_robot_captcha.js 1.1.1384.
+	// captchaDebugInfoFallback - константа виджета из not_robot_captcha.js 1.1.1387.
 	// Ротируется вместе с версией бандла; используется, только если бандл не скачался
 	// (UUID тут был бы аномалией - VK всегда шлёт 64-hex).
-	captchaDebugInfoFallback = "153e72fb620892a5aa1580b0f30f1fe007b20f8e01bf5c03023f87e73e958749"
+	captchaDebugInfoFallback = "b50d237c4ab98510721070cdbafe5dd88691e8883aa2458968040d70f870d91f"
 )
 
 var (
@@ -102,7 +102,8 @@ type captchaSession struct {
 	sensors sensorConfig
 	// sensorsStart - момент ответа settings: с него виджет начинает тикать
 	// таймером телеметрии.
-	sensorsStart time.Time
+	sensorsStart  time.Time
+	onCompromised func()
 }
 
 func (s *captchaSession) logger() logx.Logger {
@@ -120,6 +121,7 @@ func Solve(
 	client tlsclient.HttpClient,
 	profile browserprofile.Profile,
 	log logx.Logger,
+	onCompromised func(),
 ) (string, error) {
 	if captchaErr == nil || captchaErr.SessionToken == "" {
 		return "", fmt.Errorf("no session_token in redirect_uri")
@@ -128,14 +130,15 @@ func Solve(
 	l.Infof("[STREAM %d] [Captcha] Solving VK Smart Captcha automatically...", streamID)
 
 	s := &captchaSession{
-		ctx:       ctx,
-		client:    client,
-		profile:   profile,
-		layout:    layoutFor(profile),
-		domain:    captchaDomain,
-		log:       l,
-		browserFP: profile.VisitorID,
-		sensors:   defaultSensorConfig(),
+		ctx:           ctx,
+		client:        client,
+		profile:       profile,
+		layout:        layoutFor(profile),
+		domain:        captchaDomain,
+		log:           l,
+		browserFP:     profile.VisitorID,
+		sensors:       defaultSensorConfig(),
+		onCompromised: onCompromised,
 	}
 
 	for attempt := 1; attempt <= captchaMaxAttempts; attempt++ {
@@ -249,6 +252,9 @@ func (s *captchaSession) escalate(sessionToken string, initContent captchaConten
 	}
 	if content.Value == "" {
 		return "", cause
+	}
+	if s.onCompromised != nil {
+		s.onCompromised()
 	}
 	s.logger().Debugf("[Captcha] escalated to slider in-session (content source=%s)", content.Source)
 	// Перерисовка виджета плюс пауза на осознание.
@@ -503,9 +509,9 @@ func (s *captchaSession) sendComponentDone(sessionToken string) error {
 		{"session_token", sessionToken},
 		{"domain", s.domain},
 		{"adFp", ""},
-		{"access_token", ""},
 		{"browser_fp", s.browserFP},
 		{"device", s.profile.DeviceJSON},
+		{"access_token", ""},
 	}); err != nil {
 		return fmt.Errorf("captcha componentDone failed: %w", err)
 	}
