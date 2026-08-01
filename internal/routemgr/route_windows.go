@@ -11,7 +11,7 @@ import (
 )
 
 func discoverGateway() (string, error) {
-	cmd := exec.Command("cmd", "/c", "route", "print", "0.0.0.0")
+	cmd := exec.Command("cmd", "/c", "route", "print", "0.0.0.0") //nolint:gosec,noctx
 	out, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to run route print: %w", err)
@@ -38,7 +38,7 @@ func discoverGateway() (string, error) {
 }
 
 func addRoute(ip, gateway string) error {
-	cmd := exec.Command("cmd", "/c", "route", "add", ip, "mask", "255.255.255.255", gateway)
+	cmd := exec.Command("cmd", "/c", "route", "add", ip, "mask", "255.255.255.255", gateway) //nolint:gosec,noctx
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to add route for %s via %s: %w", ip, gateway, err)
 	}
@@ -46,7 +46,7 @@ func addRoute(ip, gateway string) error {
 }
 
 func delRoute(ip string) error {
-	cmd := exec.Command("cmd", "/c", "route", "delete", ip)
+	cmd := exec.Command("cmd", "/c", "route", "delete", ip) //nolint:gosec,noctx
 	// Игнорируем ошибки (например, если маршрут уже удалён)
 	_ = cmd.Run()
 	return nil

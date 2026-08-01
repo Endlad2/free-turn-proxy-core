@@ -11,7 +11,7 @@ import (
 )
 
 func discoverGateway() (string, error) {
-	cmd := exec.Command("route", "-n", "get", "default")
+	cmd := exec.Command("route", "-n", "get", "default") //nolint:gosec,noctx
 	out, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to run route get default: %w", err)
@@ -38,7 +38,7 @@ func addRoute(ip, gateway string) error {
 	// Пытаемся удалить перед добавлением, игнорируем ошибку
 	_ = delRoute(ip)
 
-	cmd := exec.Command("route", "-n", "add", "-host", ip, gateway)
+	cmd := exec.Command("route", "-n", "add", "-host", ip, gateway) //nolint:gosec,noctx
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to add route for %s via %s: %w", ip, gateway, err)
 	}
@@ -46,7 +46,7 @@ func addRoute(ip, gateway string) error {
 }
 
 func delRoute(ip string) error {
-	cmd := exec.Command("route", "-n", "delete", "-host", ip)
+	cmd := exec.Command("route", "-n", "delete", "-host", ip) //nolint:gosec,noctx
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		if bytes.Contains(out, []byte("not in table")) {

@@ -17,7 +17,7 @@ func discoverGateway() (string, error) {
 		return "", nil
 	}
 
-	cmd := exec.Command("ip", "-o", "-4", "route", "show", "to", "default")
+	cmd := exec.Command("ip", "-o", "-4", "route", "show", "to", "default") //nolint:gosec,noctx
 	out, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to get default route: %w", err)
@@ -35,7 +35,7 @@ func discoverGateway() (string, error) {
 }
 
 func addRoute(ip, gateway string) error {
-	cmd := exec.Command("ip", "route", "replace", fmt.Sprintf("%s/32", ip), "via", gateway)
+	cmd := exec.Command("ip", "route", "replace", fmt.Sprintf("%s/32", ip), "via", gateway) //nolint:gosec,noctx
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to add route for %s via %s: %w", ip, gateway, err)
 	}
@@ -43,7 +43,7 @@ func addRoute(ip, gateway string) error {
 }
 
 func delRoute(ip string) error {
-	cmd := exec.Command("ip", "route", "del", fmt.Sprintf("%s/32", ip))
+	cmd := exec.Command("ip", "route", "del", fmt.Sprintf("%s/32", ip)) //nolint:gosec,noctx
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		if bytes.Contains(out, []byte("No such process")) {

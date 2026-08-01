@@ -352,7 +352,9 @@ func (s *Session) relay(ctx context.Context, prov provider.Provider, peer *net.U
 		if rmErr != nil {
 			log.Warnf("route manager disabled: %v", rmErr)
 		} else if rm != nil {
-			defer rm.Close()
+			defer func() {
+				_ = rm.Close()
+			}()
 			routeCallback = rm.Callback()
 			log.Infof("route manager: gateway=%s", rm.Gateway())
 		}
