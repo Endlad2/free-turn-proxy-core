@@ -7,7 +7,6 @@ package udprelay
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -78,18 +77,19 @@ func (d *Deps) log() logx.Logger {
 	return d.Log
 }
 
-// Run - точка входа UDP-режима. Биндит listenAddr, распределяет входящие пакеты
-// в общую очередь и запускает numStreams пар (DTLSLoop, TURNLoop).
+// Run - точка входа UDP-режима. Читает пакеты локального пира из listenConn,
+// распределяет их в общую очередь и запускает numStreams пар (DTLSLoop, TURNLoop).
+//
+// listenConn - канал до локального пира (WireGuard/Xray). Вызывающий решает,
+// что это: UDP-сокет на cfg.Proxy.Listen или пара в памяти, когда туннель
+// поднят внутри процесса. Run владеет им и закрывает при отмене ctx.
+//
 // connectedStreams принадлежит вызывающему (provider может читать через свой
 // StreamsAlive-аналог) и инкрементируется/декрементируется в oneTURN.
 // Возвращается после выхода всех потоков (т.е. при отмене ctx).
 // При фатальной provider-ошибке возвращает ErrFatal - вызывающий делает
 // os.Exit без вмешательства udprelay в хост-процесс.
-func Run(ctx context.Context, dtlsDialer *dtlsdial.Dialer, auth AuthHandler, logger logx.Logger, connectedStreams *atomic.Int32, params *Params, peer *net.UDPAddr, listenAddr string, numStreams int) error {
-	listenConn, err := (&net.ListenConfig{}).ListenPacket(ctx, "udp", listenAddr)
-	if err != nil {
-		return fmt.Errorf("udprelay listen %s: %w", listenAddr, err)
-	}
+func Run(ctx context.Context, dtlsDialer *dtlsdial.Dialer, auth AuthHandler, logger logx.Logger, connectedStreams *atomic.Int32, params *Params, peer *net.UDPAddr, listenConn net.PacketConn, numStreams int) error {
 	context.AfterFunc(ctx, func() {
 		if closeErr := listenConn.Close(); closeErr != nil {
 			logger.Errorf("udprelay: close local connection: %s", closeErr)

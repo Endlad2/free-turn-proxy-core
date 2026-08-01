@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/samosvalishe/free-turn-proxy/internal/client/ish"
@@ -46,6 +47,10 @@ type Deps struct {
 	DTLSDialer  *dtlsdial.Dialer
 	Log         logx.Logger
 	BondHandler BondHandler
+	// ConnectedStreams, если задан, зеркалит число живых сессий пула. Тот же
+	// счётчик, что udprelay ведёт для своих стримов: хосту нужен один источник
+	// "сколько каналов поднято" независимо от режима.
+	ConnectedStreams *atomic.Int32
 }
 
 func (d *Deps) log() logx.Logger {
@@ -59,7 +64,7 @@ func (d *Deps) log() logx.Logger {
 // первого подключения, затем принимает локальные TCP-соединения и форвардит
 // каждое как smux-поток (round-robin) или bonded по всем активным сессиям.
 func Run(ctx context.Context, deps *Deps, params *Params, peer *net.UDPAddr, listenAddr string, numSessions int, useBond bool) error {
-	pool := &SessionPool{}
+	pool := &SessionPool{active: deps.ConnectedStreams}
 
 	var wgMaint sync.WaitGroup
 	for i := range numSessions {
