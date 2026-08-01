@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.1.0](https://github.com/samosvalishe/free-turn-proxy/compare/v2.0.2...v2.1.0) (2026-08-01)
+
+
+### Features
+
+* **proxy:** встроенное управление маршрутами к TURN-серверам ([a7798cd](https://github.com/samosvalishe/free-turn-proxy/commit/a7798cd851ab7091526a6131e71bf8e5c37a1ff2))
+
+
+### Bug Fixes
+
+* **routes:** linter ([cdc7ee8](https://github.com/samosvalishe/free-turn-proxy/commit/cdc7ee8d3d71b9d04a6a1b238bbf2d5263f2603e))
+
+
+### Refactoring
+
+* перенос логики сессии в internal/session и обновление mobile-фасада ([1f86fda](https://github.com/samosvalishe/free-turn-proxy/commit/1f86fda104b09f4b61e065c4b0bda97cec4c04bd))
+
 ## [2.0.2](https://github.com/samosvalishe/free-turn-proxy/compare/v2.0.1...v2.0.2) (2026-07-30)
 
 
