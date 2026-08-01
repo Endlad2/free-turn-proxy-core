@@ -156,7 +156,8 @@ jobs:
                 -e 's|\*\*([^*]+)\*\*|<b>\1</b>|g' \
                 -e 's|`([^`]+)`|<code>\1</code>|g' \
                 -e 's|^#{1,6}[[:space:]]+(.*)$|<b>\1</b>|' \
-                -e 's|^[-*][[:space:]]+|• |')
+                -e 's|^[-*][[:space:]]+([0-9a-f]{7,40}:[[:space:]]+)?|• |' \
+                -e 's|\(@([[:alnum:]_-]+)\)|(<a href="https://github.com/\1">\1</a>)|g')
           TEXT=$(printf '🐒💨 <b>FreeTurn (Go) %s</b>\n\n%s\n\n<a href="%s">Релиз на GitHub</a>' "$GITHUB_REF_NAME" "$HTML" "$URL")
           send() {
             curl -fsS -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
