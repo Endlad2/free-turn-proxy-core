@@ -49,6 +49,7 @@ func defaultRaw() raw {
 		ObfProfile:     string(DefaultObfProfile),
 		Platform:       string(DefaultPlatform),
 		DNSMode:        DefaultDNSMode,
+		Routes:         false,
 		TunnelMode:     string(tunnel.ModeNone),
 		TunnelMTU:      tunnel.DefaultMTU,
 	}

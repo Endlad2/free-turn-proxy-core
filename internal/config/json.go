@@ -23,6 +23,7 @@ type ClientJSON struct {
 	ClientID string `json:"clientId"`
 	SubURL   string `json:"subUrl"`
 	Provider string `json:"provider"`
+	Routes   bool   `json:"routes"`
 
 	TURN   turnJSON   `json:"turn"`
 	Proxy  proxyJSON  `json:"proxy"`
@@ -141,6 +142,7 @@ func defaultClientJSON() ClientJSON {
 		ClientID: r.ClientID,
 		SubURL:   r.SubURL,
 		Provider: r.Provider,
+		Routes:   r.Routes,
 		TURN: turnJSON{
 			N:         r.N,
 			Transport: r.Transport,
@@ -201,6 +203,7 @@ func (j ClientJSON) toRaw() raw {
 		Debug:    j.Log.Debug,
 		ClientID: j.ClientID,
 		SubURL:   j.SubURL,
+		Routes:   j.Routes,
 
 		TunnelMode:   j.Tunnel.Mode,
 		TunnelConfig: j.Tunnel.Config,

@@ -143,6 +143,7 @@ type Client struct {
 	Tunnel   TunnelOpts
 	ClientID string
 	SubURL   string
+	Routes   bool // -routes: автоматическое управление маршрутами к TURN-серверам
 }
 
 // Server - собранные и провалидированные опции сервера.

@@ -51,6 +51,9 @@ type Deps struct {
 	// счётчик, что udprelay ведёт для своих стримов: хосту нужен один источник
 	// "сколько каналов поднято" независимо от режима.
 	ConnectedStreams *atomic.Int32
+	// OnTURNServer вызывается при обнаружении IP TURN-сервера.
+	// Используется для автоматического управления маршрутами. nil - no-op.
+	OnTURNServer func(ip net.IP)
 }
 
 func (d *Deps) log() logx.Logger {
@@ -253,6 +256,9 @@ func createSmuxSession(ctx context.Context, deps *Deps, params *Params, peer *ne
 	cleanupFns = append(cleanupFns, func() { _ = stream.Close() })
 	relayConn := stream.Relay
 	deps.log().Debugf("[session %d] TURN server IP: %s", id, stream.ServerUDPAddr.IP)
+	if deps.OnTURNServer != nil {
+		deps.OnTURNServer(stream.ServerUDPAddr.IP)
+	}
 	deps.log().Debugf("relayed-address=%s", relayConn.LocalAddr().String())
 
 	obfConn, err := common.NewClientObf(params.Profile, params.ObfKey)

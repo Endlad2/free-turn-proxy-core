@@ -28,6 +28,7 @@ import (
 	"github.com/samosvalishe/free-turn-proxy/internal/proxy/bondclient"
 	"github.com/samosvalishe/free-turn-proxy/internal/proxy/tcpfwd"
 	"github.com/samosvalishe/free-turn-proxy/internal/proxy/udprelay"
+	"github.com/samosvalishe/free-turn-proxy/internal/routemgr"
 	"github.com/samosvalishe/free-turn-proxy/internal/stats"
 	"github.com/samosvalishe/free-turn-proxy/internal/transport/dtlsdial"
 )
@@ -343,6 +344,20 @@ func (s *Session) relay(ctx context.Context, prov provider.Provider, peer *net.U
 		return c.User, c.Pass, c.ServerAddrs, nil
 	}
 
+	// Управление маршрутами: создаём host-route для IP TURN-серверов через
+	// реальный шлюз, чтобы VPN не перехватывал TURN-трафик.
+	var routeCallback func(net.IP)
+	if s.cfg.Routes && !s.cfg.Tunnel.Enabled() {
+		rm, rmErr := routemgr.New(log)
+		if rmErr != nil {
+			log.Warnf("route manager disabled: %v", rmErr)
+		} else if rm != nil {
+			defer rm.Close()
+			routeCallback = rm.Callback()
+			log.Infof("route manager: gateway=%s", rm.Gateway())
+		}
+	}
+
 	if s.cfg.Proxy.Mode != config.ProxyModeUDP {
 		dialer := &dtlsdial.Dialer{
 			HandshakeTimeout: s.opts.TCPHandshakeTimeout,
@@ -354,6 +369,7 @@ func (s *Session) relay(ctx context.Context, prov provider.Provider, peer *net.U
 			Log:              log,
 			BondHandler:      bond.Handle,
 			ConnectedStreams: &s.connected,
+			OnTURNServer:     routeCallback,
 		}
 		params := &tcpfwd.Params{
 			Host:         s.cfg.TURN.Host,
@@ -390,7 +406,7 @@ func (s *Session) relay(ctx context.Context, prov provider.Provider, peer *net.U
 		ClientID:     s.cfg.ClientID,
 		TrafficStats: s.trafficStats(),
 	}
-	return udprelay.Run(ctx, dialer, prov, log, &s.connected, params, peer, local, s.total)
+	return udprelay.Run(ctx, dialer, prov, log, &s.connected, routeCallback, params, peer, local, s.total)
 }
 
 // localConn открывает канал до локального пира. Обычно это UDP-сокет на
