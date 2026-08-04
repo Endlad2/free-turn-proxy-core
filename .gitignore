@@ -18,4 +18,3 @@ client_config.json
 node_modules
 dist
 /mobile-dist/
-captcha_trace.md

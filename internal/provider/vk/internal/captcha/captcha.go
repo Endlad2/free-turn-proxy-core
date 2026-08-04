@@ -643,7 +643,6 @@ func (s *captchaSession) doRaw(
 	}()
 	data, readErr := io.ReadAll(resp.Body)
 	s.logger().Debugf("[Captcha] http %s %s status=%d bytes=%d after=%s form=%s", method, captchaSafeURL(endpoint), resp.StatusCode, len(data), time.Since(start).Truncate(time.Millisecond), captchaFormSummary(form))
-	traceExchange(req, form, resp, data, time.Since(start))
 	return data, readErr
 }
 
