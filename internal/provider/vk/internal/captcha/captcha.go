@@ -102,8 +102,7 @@ type captchaSession struct {
 	sensors sensorConfig
 	// sensorsStart - момент ответа settings: с него виджет начинает тикать
 	// таймером телеметрии.
-	sensorsStart  time.Time
-	onCompromised func()
+	sensorsStart time.Time
 }
 
 func (s *captchaSession) logger() logx.Logger {
@@ -121,7 +120,6 @@ func Solve(
 	client tlsclient.HttpClient,
 	profile browserprofile.Profile,
 	log logx.Logger,
-	onCompromised func(),
 ) (string, error) {
 	if captchaErr == nil || captchaErr.SessionToken == "" {
 		return "", fmt.Errorf("no session_token in redirect_uri")
@@ -130,15 +128,14 @@ func Solve(
 	l.Infof("[STREAM %d] [Captcha] Solving VK Smart Captcha automatically...", streamID)
 
 	s := &captchaSession{
-		ctx:           ctx,
-		client:        client,
-		profile:       profile,
-		layout:        layoutFor(profile),
-		domain:        captchaDomain,
-		log:           l,
-		browserFP:     profile.VisitorID,
-		sensors:       defaultSensorConfig(),
-		onCompromised: onCompromised,
+		ctx:       ctx,
+		client:    client,
+		profile:   profile,
+		layout:    layoutFor(profile),
+		domain:    captchaDomain,
+		log:       l,
+		browserFP: profile.VisitorID,
+		sensors:   defaultSensorConfig(),
 	}
 
 	for attempt := 1; attempt <= captchaMaxAttempts; attempt++ {
@@ -252,9 +249,6 @@ func (s *captchaSession) escalate(sessionToken string, initContent captchaConten
 	}
 	if content.Value == "" {
 		return "", cause
-	}
-	if s.onCompromised != nil {
-		s.onCompromised()
 	}
 	s.logger().Debugf("[Captcha] escalated to slider in-session (content source=%s)", content.Source)
 	// Перерисовка виджета плюс пауза на осознание.
