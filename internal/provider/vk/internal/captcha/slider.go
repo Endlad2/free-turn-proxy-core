@@ -109,7 +109,7 @@ func (s *captchaSession) solveSliderCaptcha(
 		}
 		handle = target
 
-		check, err := s.performCaptchaCheck(sessionToken, string(answerData), g)
+		check, err := s.performCaptchaCheck(sessionToken, string(answerData))
 		if err != nil {
 			return "", err
 		}
