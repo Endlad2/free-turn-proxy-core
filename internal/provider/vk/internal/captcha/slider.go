@@ -11,6 +11,7 @@ import (
 	_ "image/jpeg" // регистрация JPEG-декодера для image.Decode
 	"math"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -75,6 +76,7 @@ func (s *captchaSession) solveSliderCaptcha(
 	if limit <= 0 {
 		return "", errors.New("slider has no attempts available")
 	}
+	attempts := pickSliderAttempts(guesses, limit)
 	s.logger().Debugf("[Captcha] slider guesses ranked: total=%d limit=%d", len(guesses), limit)
 
 	if err := s.sendComponentDone(sessionToken); err != nil {
@@ -87,15 +89,15 @@ func (s *captchaSession) solveSliderCaptcha(
 	if !s.profile.Touch() {
 		handle = approachFrom(s.profile, s.layout, handle)
 	}
-	for i := 0; i < limit; i++ {
-		s.logger().Debugf("[Captcha] slider attempt %d/%d (guess #%d)", i+1, limit, guesses[i].Index)
+	for i, guess := range attempts {
+		s.logger().Debugf("[Captcha] slider attempt %d/%d (guess #%d)", i+1, len(attempts), guess.Index)
 		answerData, err := json.Marshal(struct {
 			Value []int `json:"value"`
-		}{Value: guesses[i].Swaps})
+		}{Value: guess.Swaps})
 		if err != nil {
 			return "", err
 		}
-		target := s.layout.sliderTarget(guesses[i].Index, len(guesses))
+		target := s.layout.sliderTarget(guess.Index, len(guesses))
 		g := gesture{
 			from:   handle,
 			to:     target,
@@ -350,6 +352,30 @@ func rankSliderGuesses(img image.Image, gridSize int, swaps []int) ([]sliderGues
 		return guesses[i].ConsensusRank < guesses[j].ConsensusRank
 	})
 	return guesses, nil
+}
+
+// pickSliderAttempts разносит попытки по дорожке: соседние кандидаты отличаются
+// одним свапом и получают почти равный скор, поэтому вторая попытка рядом с
+// первой промахивается вместе с ней.
+func pickSliderAttempts(guesses []sliderGuess, limit int) []sliderGuess {
+	const minGap = 3
+	out := make([]sliderGuess, 0, limit)
+	taken := func(index, gap int) bool {
+		return slices.ContainsFunc(out, func(g sliderGuess) bool {
+			return absInt(g.Index-index) < gap
+		})
+	}
+	for _, gap := range []int{minGap, 1} {
+		for _, g := range guesses {
+			if len(out) == limit {
+				return out
+			}
+			if !taken(g.Index, gap) {
+				out = append(out, g)
+			}
+		}
+	}
+	return out
 }
 
 func activeSwapsForIndex(swaps []int, index int) []int {
