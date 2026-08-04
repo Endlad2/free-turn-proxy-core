@@ -137,16 +137,3 @@ func TestCaptchaDomainFromRedirectURI(t *testing.T) {
 		})
 	}
 }
-
-func TestReverseSwapPairs(t *testing.T) {
-	got := reverseSwapPairs([]int{1, 2, 3, 4, 5, 6})
-	want := []int{5, 6, 3, 4, 1, 2}
-	if len(got) != len(want) {
-		t.Fatalf("len = %d, want %d", len(got), len(want))
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("reverseSwapPairs = %v, want %v", got, want)
-		}
-	}
-}

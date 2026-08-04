@@ -33,7 +33,6 @@ type sliderGuess struct {
 	Score         int64
 	ScoreRGB      int64
 	ScoreLuma     int64
-	ScoreReverse  int64
 	ScoreText     float64
 	ConsensusRank int
 }
@@ -230,15 +229,6 @@ func rankSliderGuesses(img image.Image, gridSize int, swaps []int) ([]sliderGues
 		}
 		guesses[idx-1] = sliderGuess{Index: idx, Swaps: active}
 		guesses[idx-1].ScoreLuma = seamScoreLuma(img, gridSize, mapping)
-		if len(active) > 2 {
-			reverseMapping, err := applySliderSwaps(gridSize, reverseSwapPairs(active))
-			if err != nil {
-				return nil, err
-			}
-			guesses[idx-1].ScoreReverse = seamScoreLuma(img, gridSize, reverseMapping)
-		} else {
-			guesses[idx-1].ScoreReverse = guesses[idx-1].ScoreLuma
-		}
 	}
 
 	lumaOrder := append([]sliderGuess(nil), guesses...)
@@ -339,21 +329,9 @@ func rankSliderGuesses(img image.Image, gridSize int, swaps []int) ([]sliderGues
 		textRank[g.Index] = rank
 	}
 
-	reverseOrder := append([]sliderGuess(nil), guesses...)
-	sort.SliceStable(reverseOrder, func(i, j int) bool {
-		if reverseOrder[i].ScoreReverse == reverseOrder[j].ScoreReverse {
-			return reverseOrder[i].Index < reverseOrder[j].Index
-		}
-		return reverseOrder[i].ScoreReverse < reverseOrder[j].ScoreReverse
-	})
-	reverseRank := make(map[int]int, len(reverseOrder))
-	for rank, g := range reverseOrder {
-		reverseRank[g.Index] = rank
-	}
-
 	for i := range guesses {
 		g := &guesses[i]
-		g.ConsensusRank = lumaRank[g.Index] + reverseRank[g.Index]
+		g.ConsensusRank = lumaRank[g.Index]
 		if _, ok := stage2Set[g.Index]; ok {
 			g.ConsensusRank += rgbRank[g.Index] + textRank[g.Index]
 		} else {
@@ -372,14 +350,6 @@ func rankSliderGuesses(img image.Image, gridSize int, swaps []int) ([]sliderGues
 		return guesses[i].ConsensusRank < guesses[j].ConsensusRank
 	})
 	return guesses, nil
-}
-
-func reverseSwapPairs(swaps []int) []int {
-	out := make([]int, 0, len(swaps))
-	for i := len(swaps) - 2; i >= 0; i -= 2 {
-		out = append(out, swaps[i], swaps[i+1])
-	}
-	return out
 }
 
 func activeSwapsForIndex(swaps []int, index int) []int {
