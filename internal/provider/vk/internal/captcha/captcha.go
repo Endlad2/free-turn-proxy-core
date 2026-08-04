@@ -35,10 +35,10 @@ const (
 	captchaAPIOrigin  = "https://id.vk.ru"
 	captchaDomain     = "vk.ru"
 
-	// captchaDebugInfoFallback - константа виджета из not_robot_captcha.js 1.1.1387.
+	// captchaDebugInfoFallback - константа виджета из not_robot_captcha.js 1.1.1388.
 	// Ротируется вместе с версией бандла; используется, только если бандл не скачался
 	// (UUID тут был бы аномалией - VK всегда шлёт 64-hex).
-	captchaDebugInfoFallback = "b50d237c4ab98510721070cdbafe5dd88691e8883aa2458968040d70f870d91f"
+	captchaDebugInfoFallback = "0dd096fc7f8d86664f9e8789cf34a99977d39090c0477affead7437709c7990f"
 )
 
 var (
