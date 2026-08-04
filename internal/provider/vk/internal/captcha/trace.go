@@ -30,7 +30,7 @@ func traceValue(v string, limit int) string {
 
 // traceHeaders отдаёт заголовки в том порядке, в каком их отправит fhttp.
 func traceHeaders(h fhttp.Header) []string {
-	order, _ := h[fhttp.HeaderOrderKey]
+	order := h[fhttp.HeaderOrderKey]
 	seen := map[string]bool{}
 	out := make([]string, 0, len(h))
 	for _, name := range order {
@@ -102,7 +102,7 @@ func traceExchange(
 		fmt.Fprintf(&b, "```\n\n```\n%s\n```\n", traceBody(body))
 	}
 
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644) //nolint:gosec // путь задаёт оператор переменной окружения
 	if err != nil {
 		Log.Warnf("[Captcha][TRACE] open: %v", err)
 		return
