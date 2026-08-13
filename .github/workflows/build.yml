@@ -12,6 +12,10 @@ permissions:
   contents: write
   packages: write
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
   test:
     name: Test
@@ -128,14 +132,11 @@ jobs:
           path: dist/
           if-no-files-found: error
 
-  build-mobile:
-    name: Build Mobile
+  build-android:
+    name: Build Android
     runs-on: ubuntu-latest
     needs: [test, lint, fmt]
     if: github.event_name != 'pull_request'
-    strategy:
-      matrix:
-        target: [android, ios]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -151,19 +152,16 @@ jobs:
           go install golang.org/x/mobile/cmd/gomobile@latest
           gomobile init
 
-      - name: Setup Java for Android
-        if: matrix.target == 'android'
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
       - name: Setup Android SDK
-        if: matrix.target == 'android'
         uses: android-actions/setup-android@v3
 
       - name: Build Android AAR
-        if: matrix.target == 'android'
         run: |
           mkdir -p dist
           gomobile bind \
@@ -174,8 +172,34 @@ jobs:
             -o dist/freeturn.aar \
             ./mobile
 
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: dist/
+          if-no-files-found: error
+
+  build-ios:
+    name: Build iOS
+    runs-on: macos-latest
+    needs: [test, lint, fmt]
+    if: github.event_name != 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          gomobile init
+
       - name: Build iOS XCFramework
-        if: matrix.target == 'ios'
         run: |
           mkdir -p dist
           gomobile bind \
@@ -187,7 +211,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.target }}
+          name: ios
           path: dist/
           if-no-files-found: error
 
@@ -206,15 +230,22 @@ jobs:
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Convert repository name to lowercase
+        id: repo
+        run: |
+          echo "image_name=${IMAGE_NAME,,}" >> $GITHUB_OUTPUT
+        env:
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
 
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: ${{ env.REGISTRY }}/${{ steps.repo.outputs.image_name }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -238,7 +269,7 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    needs: [build-binaries, build-mobile, docker]
+    needs: [build-binaries, build-android, build-ios, docker]
     if: github.event_name == 'release'
     permissions:
       contents: write
@@ -267,16 +298,16 @@ jobs:
           name: binaries
           path: dist/
 
-      - name: Download mobile artifacts
+      - name: Download Android artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: android
+          name: android
           path: dist/
 
       - name: Download iOS artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: ios
+          name: ios
           path: dist/
 
       - name: Publish release
