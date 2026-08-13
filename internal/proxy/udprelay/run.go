@@ -32,6 +32,11 @@ type AuthHandler interface {
 	BackoffUntilUnix() int64
 }
 
+// BlacklistChecker - интерфейс проверки чёрного списка.
+type BlacklistChecker interface {
+	IsBlacklisted(ip net.IP) bool
+}
+
 // Params - per-stream конфигурация TURN/wrap, общая для DTLS и TURN циклов.
 type Params struct {
 	Host         string
@@ -68,6 +73,8 @@ type Deps struct {
 	// OnTURNServer вызывается при обнаружении IP TURN-сервера.
 	// Используется для автоматического управления маршрутами. nil - no-op.
 	OnTURNServer func(ip net.IP)
+	// BlacklistChecker используется для фильтрации заблокированных TURN-серверов.
+	BlacklistChecker BlacklistChecker
 	// fatalCh - внутренний сигнальный канал; устанавливается Run, пишется
 	// TURNLoop, читается Run для проброса фатальной ошибки наверх.
 	fatalCh chan error
@@ -92,7 +99,7 @@ func (d *Deps) log() logx.Logger {
 // Возвращается после выхода всех потоков (т.е. при отмене ctx).
 // При фатальной provider-ошибке возвращает ErrFatal - вызывающий делает
 // os.Exit без вмешательства udprelay в хост-процесс.
-func Run(ctx context.Context, dtlsDialer *dtlsdial.Dialer, auth AuthHandler, logger logx.Logger, connectedStreams *atomic.Int32, onTURNServer func(net.IP), params *Params, peer *net.UDPAddr, listenConn net.PacketConn, numStreams int) error {
+func Run(ctx context.Context, dtlsDialer *dtlsdial.Dialer, auth AuthHandler, logger logx.Logger, connectedStreams *atomic.Int32, onTURNServer func(net.IP), blacklistChecker BlacklistChecker, params *Params, peer *net.UDPAddr, listenConn net.PacketConn, numStreams int) error {
 	context.AfterFunc(ctx, func() {
 		if closeErr := listenConn.Close(); closeErr != nil {
 			logger.Errorf("udprelay: close local connection: %s", closeErr)
@@ -112,6 +119,7 @@ func Run(ctx context.Context, dtlsDialer *dtlsdial.Dialer, auth AuthHandler, log
 		ActiveLocalPeer:  &activeLocalPeer,
 		ConnectedStreams: connectedStreams,
 		OnTURNServer:     onTURNServer,
+		BlacklistChecker: blacklistChecker,
 		fatalCh:          fatalCh,
 	}
 

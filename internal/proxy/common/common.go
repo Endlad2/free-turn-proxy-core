@@ -9,10 +9,16 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/samosvalishe/free-turn-proxy/internal/transport/turndial"
 	"github.com/samosvalishe/free-turn-proxy/internal/wire"
 )
+
+// BlacklistChecker проверяет, заблокирован ли IP-адрес.
+type BlacklistChecker interface {
+	IsBlacklisted(ip net.IP) bool
+}
 
 // GetCredsFunc разрешает TURN-реквизиты для streamID. Реализуется provider'ом
 // (см. internal/provider): provider держит идентификатор сессии (link/room/key)
@@ -25,7 +31,9 @@ type GetCredsFunc func(ctx context.Context, streamID int) (user, pass string, ra
 // берёт следующий. Возвращает первый успешный Stream. Вызывающий отвечает за
 // закрытие потока и политику retry при auth-ошибке (udprelay) или перезапуска
 // сессии (tcpfwd).
-func DialTURN(ctx context.Context, host, port string, udp bool, peer *net.UDPAddr, streamID int, getCreds GetCredsFunc) (*turndial.Stream, error) {
+//
+// blacklistChecker используется для фильтрации IP-адресов, находящихся в чёрном списке.
+func DialTURN(ctx context.Context, host, port string, udp bool, peer *net.UDPAddr, streamID int, getCreds GetCredsFunc, blacklistChecker BlacklistChecker) (*turndial.Stream, error) {
 	user, pass, rawURLs, err := getCreds(ctx, streamID)
 	if err != nil {
 		return nil, fmt.Errorf("get TURN creds: %w", err)
@@ -33,13 +41,31 @@ func DialTURN(ctx context.Context, host, port string, udp bool, peer *net.UDPAdd
 	if len(rawURLs) == 0 {
 		return nil, fmt.Errorf("no TURN candidates")
 	}
+
+	// Фильтруем кандидатов: исключаем IP-адреса из чёрного списка.
+	filteredURLs := make([]string, 0, len(rawURLs))
+	for _, rawURL := range rawURLs {
+		hostOnly := strings.Split(rawURL, ":")[0]
+		if ip := net.ParseIP(hostOnly); ip != nil {
+			if blacklistChecker != nil && blacklistChecker.IsBlacklisted(ip) {
+				continue
+			}
+		}
+		filteredURLs = append(filteredURLs, rawURL)
+	}
+
+	if len(filteredURLs) == 0 {
+		return nil, fmt.Errorf("all TURN candidates are blacklisted")
+	}
+
 	// HostOverride (-turn) принудительно задаёт host -> все кандидаты резолвятся
 	// в одну цель, гонять их нет смысла; пробуем только первого.
 	if host != "" {
-		rawURLs = rawURLs[:1]
+		filteredURLs = filteredURLs[:1]
 	}
+
 	var errs []error
-	for _, rawURL := range rawURLs {
+	for _, rawURL := range filteredURLs {
 		stream, derr := turndial.Open(ctx, turndial.Config{
 			HostOverride: host,
 			PortOverride: port,

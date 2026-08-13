@@ -23,6 +23,11 @@ import (
 // GetCredsFunc реэкспортирован из common, чтобы вызывающие не выходили за пределы импортов пакета.
 type GetCredsFunc = common.GetCredsFunc
 
+// BlacklistChecker - интерфейс проверки чёрного списка.
+type BlacklistChecker interface {
+	IsBlacklisted(ip net.IP) bool
+}
+
 // Params - конфигурация TURN/obf для пула.
 type Params struct {
 	Host         string
@@ -54,6 +59,8 @@ type Deps struct {
 	// OnTURNServer вызывается при обнаружении IP TURN-сервера.
 	// Используется для автоматического управления маршрутами. nil - no-op.
 	OnTURNServer func(ip net.IP)
+	// BlacklistChecker используется для фильтрации заблокированных TURN-серверов.
+	BlacklistChecker BlacklistChecker
 }
 
 func (d *Deps) log() logx.Logger {
@@ -249,7 +256,7 @@ func createSmuxSession(ctx context.Context, deps *Deps, params *Params, peer *ne
 		}
 	}
 
-	stream, err := common.DialTURN(ctx, params.Host, params.Port, params.TransportUDP, peer, id, params.GetCreds)
+	stream, err := common.DialTURN(ctx, params.Host, params.Port, params.TransportUDP, peer, id, params.GetCreds, deps.BlacklistChecker)
 	if err != nil {
 		return nil, nil, err
 	}
