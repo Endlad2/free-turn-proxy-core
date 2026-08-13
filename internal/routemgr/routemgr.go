@@ -50,6 +50,15 @@ func (m *Manager) IsBlacklisted(ip net.IP) bool {
 	return m.blacklist.Contains(ip.String())
 }
 
+// Clear очищает чёрный список.
+func (m *Manager) Clear() {
+	if m == nil {
+		return
+	}
+	m.blacklist.Clear()
+	m.log.Debugf("Blacklist cleared")
+}
+
 // EnsureRouteToTURN добавляет маршрут к TURN-серверу через шлюз по умолчанию.
 // При ошибке добавления маршрута IP вносится в чёрный список на 5 минут.
 func (m *Manager) EnsureRouteToTURN(ip net.IP) {

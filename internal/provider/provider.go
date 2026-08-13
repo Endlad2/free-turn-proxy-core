@@ -52,6 +52,10 @@ type Provider interface {
 	// Используется только при возврате ошибки, обёрнутой ErrBackoffActive.
 	BackoffUntilUnix() int64
 
+	// InvalidateAllCaches инвалидирует все кеши кредов.
+	// Используется когда все TURN-адреса забанены — нужно получить свежие.
+	InvalidateAllCaches()
+
 	// Name - короткое имя провайдера для логов ("vk", ...).
 	Name() string
 }
