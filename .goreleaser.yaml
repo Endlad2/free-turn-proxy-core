@@ -154,23 +154,7 @@ release:
     - glob: mobile-dist/freeturn-sources.jar
     - glob: mobile-dist/Mobile.xcframework.zip
 
-dockers_v2:
-  - id: server
-    ids:
-      - server
-    dockerfile: Dockerfile.goreleaser
-    images:
-      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}"
-    tags:
-      - "{{ .Version }}"
-      - '{{ if not .Prerelease }}latest{{ end }}'
-    platforms:
-      - linux/amd64
-      - linux/arm64
-    labels:
-      org.opencontainers.image.source: "https://github.com/{{ .Env.GITHUB_REPOSITORY }}"
-      org.opencontainers.image.version: "{{ .Version }}"
-      org.opencontainers.image.revision: "{{ .FullCommit }}"
-      org.opencontainers.image.created: "{{ .Date }}"
-    extra_files:
-      - docker/entrypoint.sh
+# Docker builds are disabled because they're handled by the separate
+# GitHub Actions workflow (build.yml) which correctly handles lowercase
+# repository names and multi-platform builds.
+dockers_v2: []
