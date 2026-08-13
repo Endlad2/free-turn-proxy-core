@@ -28,6 +28,7 @@ func (f *fakeProvider) IsAuthError(error) bool     { return f.authResult }
 func (f *fakeProvider) HandleAuthError(s int) bool { f.gotHandle = append(f.gotHandle, s); return true }
 func (f *fakeProvider) ResetErrors(s int)          { f.gotReset = append(f.gotReset, s) }
 func (f *fakeProvider) BackoffUntilUnix() int64    { return f.backoff }
+func (f *fakeProvider) InvalidateAllCaches()       {}
 func (f *fakeProvider) Name() string               { return fmt.Sprintf("fake%d", f.idx) }
 
 func newFakes(n int) ([]provider.Provider, []*fakeProvider) {

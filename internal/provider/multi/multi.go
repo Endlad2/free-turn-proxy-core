@@ -62,6 +62,13 @@ func (m *Provider) BackoffUntilUnix() int64 {
 	return until
 }
 
+// InvalidateAllCaches - инвалидирует все кеши у всех вложенных провайдеров.
+func (m *Provider) InvalidateAllCaches() {
+	for _, p := range m.providers {
+		p.InvalidateAllCaches()
+	}
+}
+
 func (m *Provider) Name() string {
 	return fmt.Sprintf("multi(%d)", m.n)
 }
