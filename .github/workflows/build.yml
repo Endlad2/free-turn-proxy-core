@@ -1,0 +1,309 @@
+name: Build
+
+on:
+  push:
+    branches: [ master, main, develop ]
+  pull_request:
+    branches: [ master, main ]
+  release:
+    types: [ published ]
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tests with race detector
+        run: go test -race -count=1 ./...
+
+      - name: Run govulncheck
+        uses: golang/govulncheck-action@v1
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.12.2
+          timeout: 5m
+
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Install goimports
+        run: go install golang.org/x/tools/cmd/goimports@latest
+
+      - name: Check formatting
+        run: |
+          out=$(go fmt ./...)
+          if [ -n "$out" ]; then
+            echo "Files need formatting:"
+            echo "$out"
+            exit 1
+          fi
+          out=$(goimports -l .)
+          if [ -n "$out" ]; then
+            echo "Files need goimports:"
+            echo "$out"
+            exit 1
+          fi
+
+  build-binaries:
+    name: Build Binaries
+    runs-on: ubuntu-latest
+    needs: [test, lint, fmt]
+    if: github.event_name != 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Install goreleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: v2.17.1
+          install-only: true
+
+      - name: Build snapshot
+        run: goreleaser release --snapshot --clean --skip=publish,sign
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: dist/
+          if-no-files-found: error
+
+  build-mobile:
+    name: Build Mobile
+    runs-on: ubuntu-latest
+    needs: [test, lint, fmt]
+    if: github.event_name != 'pull_request'
+    strategy:
+      matrix:
+        target: [android, ios]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          gomobile init
+
+      - name: Setup Java for Android
+        if: matrix.target == 'android'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        if: matrix.target == 'android'
+        uses: android-actions/setup-android@v3
+
+      - name: Build Android AAR
+        if: matrix.target == 'android'
+        run: |
+          mkdir -p dist
+          gomobile bind \
+            -target android/arm64,android/arm \
+            -androidapi 24 \
+            -javapkg com.freeturn.core \
+            -ldflags "-checklinkname=0 -s -w" \
+            -o dist/freeturn.aar \
+            ./mobile
+
+      - name: Build iOS XCFramework
+        if: matrix.target == 'ios'
+        run: |
+          mkdir -p dist
+          gomobile bind \
+            -target ios,iossimulator \
+            -ldflags "-checklinkname=0" \
+            -o dist/Mobile.xcframework \
+            ./mobile
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: dist/
+          if-no-files-found: error
+
+  docker:
+    name: Docker
+    runs-on: ubuntu-latest
+    needs: [build-binaries]
+    if: github.event_name == 'release'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ github.event_name == 'release' }}
+            type=sha,format=short
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.goreleaser
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ github.workflow }}
+          cache-to: type=gha,mode=max,scope=${{ github.workflow }}
+          build-args: |
+            VERSION=${{ github.ref_name }}
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: [build-binaries, build-mobile, docker]
+    if: github.event_name == 'release'
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Install goreleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: v2.17.1
+          install-only: true
+
+      - name: Download binary artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: dist/
+
+      - name: Download mobile artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: android
+          path: dist/
+
+      - name: Download iOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ios
+          path: dist/
+
+      - name: Publish release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          goreleaser release \
+            --clean \
+            --skip=build,docker \
+            --config .goreleaser.yaml
+
+  notify:
+    name: Notify Telegram
+    runs-on: ubuntu-latest
+    needs: [release]
+    if: github.event_name == 'release' && github.event.action == 'published'
+    steps:
+      - name: Send Telegram notification
+        if: secrets.TELEGRAM_BOT_TOKEN != '' && secrets.TELEGRAM_CHAT_ID != ''
+        uses: appleboy/telegram-action@v1
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            🚀 New release: ${{ github.repository }} ${{ github.ref_name }}
+            
+            📦 Download: https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}
+            
+            📝 Changelog:
+            ${{ github.event.release.body }}
