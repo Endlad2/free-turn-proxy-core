@@ -30,11 +30,14 @@ type AuthHandler interface {
 	HandleAuthError(streamID int) bool
 	ResetErrors(streamID int)
 	BackoffUntilUnix() int64
+	// InvalidateAllCaches инвалидирует все кеши кредов.
+	InvalidateAllCaches()
 }
 
 // BlacklistChecker - интерфейс проверки чёрного списка.
 type BlacklistChecker interface {
 	IsBlacklisted(ip net.IP) bool
+	Clear()
 }
 
 // Params - per-stream конфигурация TURN/wrap, общая для DTLS и TURN циклов.

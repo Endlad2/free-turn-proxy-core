@@ -179,6 +179,13 @@ func (c *Client) GetCredentials(ctx context.Context, link string, streamID int) 
 	return user, pass, orderAddrs(addrs, streamID), nil
 }
 
+// InvalidateAllCaches инвалидирует все кеши кредов.
+// Используется когда все TURN-адреса забанены — нужно получить свежие.
+func (c *Client) InvalidateAllCaches() {
+	c.store.InvalidateAll()
+	c.log.Warnf("[VK Auth] All credential caches invalidated")
+}
+
 // orderAddrs возвращает копию addrs, ротированную так, что предпочтительный
 // для streamID адрес стоит первым, остальные - следом (сохраняя порядок).
 // Раскидывает primary по стримам (балансировка relay-IP), оставляя остальные

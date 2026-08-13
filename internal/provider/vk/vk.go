@@ -95,6 +95,9 @@ func (p *Provider) ResetErrors(streamID int) { p.auth.ResetErrors(streamID) }
 
 func (p *Provider) BackoffUntilUnix() int64 { return p.auth.BackoffUntilUnix() }
 
+// InvalidateAllCaches инвалидирует все кеши кредов.
+func (p *Provider) InvalidateAllCaches() { p.auth.InvalidateAllCaches() }
+
 func (*Provider) Name() string { return "vk" }
 
 func DefaultManualSolver(ctx context.Context, e *captcha.Error, d net.Dialer, p browserprofile.Profile) (string, error) {

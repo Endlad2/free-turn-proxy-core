@@ -15,9 +15,14 @@ import (
 	"github.com/samosvalishe/free-turn-proxy/internal/wire"
 )
 
+// ErrAllBlacklisted возвращается, когда все TURN-кандидаты находятся в чёрном списке.
+// Вызывающий должен инвалидировать кеш кредов и очистить чёрный список.
+var ErrAllBlacklisted = errors.New("all TURN candidates are blacklisted")
+
 // BlacklistChecker проверяет, заблокирован ли IP-адрес.
 type BlacklistChecker interface {
 	IsBlacklisted(ip net.IP) bool
+	Clear()
 }
 
 // GetCredsFunc разрешает TURN-реквизиты для streamID. Реализуется provider'ом
@@ -55,7 +60,7 @@ func DialTURN(ctx context.Context, host, port string, udp bool, peer *net.UDPAdd
 	}
 
 	if len(filteredURLs) == 0 {
-		return nil, fmt.Errorf("all TURN candidates are blacklisted")
+		return nil, ErrAllBlacklisted
 	}
 
 	// HostOverride (-turn) принудительно задаёт host -> все кандидаты резолвятся

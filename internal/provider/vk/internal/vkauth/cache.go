@@ -1,7 +1,6 @@
 package vkauth
 
 import (
-	"strings"
 	"sync"
 	"sync/atomic"
 )
@@ -68,6 +67,17 @@ func (c *StreamCredentialsCache) Invalidate() {
 
 	c.errorCount.Store(0)
 	c.lastErrorTime.Store(0)
+}
+
+// InvalidateAll инвалидирует все кеши в Store.
+// Используется когда все TURN-адреса забанены — нужно получить свежие креды.
+func (s *Store) InvalidateAll() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, cache := range s.caches {
+		cache.Invalidate()
+	}
 }
 
 func IsAuthError(err error) bool {

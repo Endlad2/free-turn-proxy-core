@@ -227,6 +227,16 @@ func oneTURN(ctx context.Context, deps *Deps, params *Params, peer *net.UDPAddr,
 	}
 	stream, err1 := common.DialTURN(ctx, params.Host, params.Port, params.TransportUDP, peer, streamID, params.GetCreds, deps.BlacklistChecker)
 	if err1 != nil {
+		// Проверяем: все адреса забанены? Тогда нужно получить свежие креды.
+		if deps.BlacklistChecker != nil && errors.Is(err1, common.ErrAllBlacklisted) {
+			deps.log().Warnf("[STREAM %d] All TURN addresses blacklisted, invalidating credential cache", streamID)
+			// Инвалидируем кеш кредов, чтобы получить свежие адреса.
+			deps.Auth.InvalidateAllCaches()
+			// Очищаем чёрный список, чтобы новые адреса не были сразу забанены.
+			deps.BlacklistChecker.Clear()
+			err = fmt.Errorf("%w: all addresses blacklisted, cache invalidated", provider.ErrBackoffActive)
+			return
+		}
 		if deps.Auth.IsAuthError(err1) {
 			deps.Auth.HandleAuthError(streamID)
 		}
