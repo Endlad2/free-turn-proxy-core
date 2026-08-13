@@ -26,6 +26,7 @@ type GetCredsFunc = common.GetCredsFunc
 // BlacklistChecker - интерфейс проверки чёрного списка.
 type BlacklistChecker interface {
 	IsBlacklisted(ip net.IP) bool
+	Clear()
 }
 
 // Params - конфигурация TURN/obf для пула.

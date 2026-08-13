@@ -1,6 +1,7 @@
 package vkauth
 
 import (
+	"strings"
 	"sync"
 	"sync/atomic"
 )
