@@ -76,7 +76,7 @@ func TestBlacklistClear(t *testing.T) {
 	}
 }
 
-func TestBlacklistConcurrent(t *testing.T) {
+func TestBlacklistConcurrent(_ *testing.T) {
 	b := New()
 	defer b.Close()
 
