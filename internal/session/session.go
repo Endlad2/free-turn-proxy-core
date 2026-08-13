@@ -275,4 +275,152 @@ func (s *Session) publish(next *statusInfo, force bool) {
 	if !force && prev != nil && *prev == *next {
 		return
 	}
-	if s.deps.Observer != nil
+	if s.deps.Observer != nil {
+		s.deps.Observer.OnPhase(next.phase, next.streams, next.total, next.err)
+	}
+}
+
+func (s *Session) captchaActive() bool {
+	return s.deps.CaptchaActive != nil && s.deps.CaptchaActive()
+}
+
+// watch публикует стадию подключения и следит за ConnectTimeout. При срабатывании
+// отменяет сессию через cancel и возвращает ошибку - её Run отдаёт наружу.
+func (s *Session) watch(ctx context.Context, cancel context.CancelFunc) error {
+	tick := time.NewTicker(s.opts.StatusInterval)
+	defer tick.Stop()
+
+	deadline := time.Now().Add(s.opts.ConnectTimeout)
+	everConnected := false
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-tick.C:
+			n := int(s.connected.Load())
+			if n > 0 {
+				everConnected = true
+			}
+
+			if s.captchaActive() {
+				deadline = time.Now().Add(s.opts.ConnectTimeout)
+				s.setStatus(PhaseCaptcha, n, "")
+				continue
+			}
+
+			phase := PhaseConnecting
+			if n > 0 {
+				phase = PhaseConnected
+			}
+			s.setStatus(phase, n, "")
+
+			if s.opts.ConnectTimeout > 0 && !everConnected && time.Now().After(deadline) {
+				cancel()
+				return fmt.Errorf("%w (timeout=%s)", ErrConnectTimeout, s.opts.ConnectTimeout)
+			}
+		}
+	}
+}
+
+func (s *Session) relay(ctx context.Context, prov provider.Provider, peer *net.UDPAddr) error {
+	log := s.deps.Logger
+	getCreds := func(ctx context.Context, streamID int) (string, string, []string, error) {
+		c, err := prov.GetCredentials(ctx, streamID)
+		if err != nil {
+			return "", "", nil, err
+		}
+		return c.User, c.Pass, c.ServerAddrs, nil
+	}
+
+	// Управление маршрутами: создаём host-route для IP TURN-серверов через
+	// реальный шлюз, чтобы VPN не перехватывал TURN-трафик.
+	var routeCallback func(net.IP)
+	var blacklistChecker udprelay.BlacklistChecker
+	if s.cfg.Routes && !s.cfg.Tunnel.Enabled() {
+		rm, rmErr := routemgr.New(log)
+		if rmErr != nil {
+			log.Warnf("route manager disabled: %v", rmErr)
+		} else if rm != nil {
+			defer func() {
+				_ = rm.Close()
+			}()
+			routeCallback = rm.Callback()
+			blacklistChecker = rm
+			log.Infof("route manager: gateway=%s", rm.Gateway())
+		}
+	}
+
+	if s.cfg.Proxy.Mode != config.ProxyModeUDP {
+		dialer := &dtlsdial.Dialer{
+			HandshakeTimeout: s.opts.TCPHandshakeTimeout,
+			HandshakeSem:     make(chan struct{}, s.opts.HandshakeConcurrency),
+		}
+		bond := &bondclient.Handler{Deps: bondclient.Deps{Log: log}}
+		deps := &tcpfwd.Deps{
+			DTLSDialer:       dialer,
+			Log:              log,
+			BondHandler:      bond.Handle,
+			ConnectedStreams: &s.connected,
+			OnTURNServer:     routeCallback,
+			BlacklistChecker: blacklistChecker,
+		}
+		params := &tcpfwd.Params{
+			Host:         s.cfg.TURN.Host,
+			Port:         s.cfg.TURN.Port,
+			TransportUDP: s.cfg.TURN.TransportUDP,
+			Profile:      string(s.cfg.Obf.Profile),
+			ObfKey:       s.cfg.Obf.Key,
+			GetCreds:     tcpfwd.GetCredsFunc(getCreds),
+			KCPProfile:   s.cfg.KCP.Profile,
+			KCPFEC:       s.cfg.KCP.FEC,
+			ClientID:     s.cfg.ClientID,
+			TrafficStats: s.trafficStats(),
+		}
+		return tcpfwd.Run(ctx, deps, params, peer, s.cfg.Proxy.Listen, s.total, s.cfg.Proxy.Mode == config.ProxyModeTCPFwdBond)
+	}
+
+	local, err := s.localConn(ctx)
+	if err != nil {
+		return err
+	}
+
+	dialer := &dtlsdial.Dialer{
+		HandshakeTimeout: s.opts.UDPHandshakeTimeout,
+		HandshakeSem:     make(chan struct{}, s.opts.HandshakeConcurrency),
+	}
+	params := &udprelay.Params{
+		Host:         s.cfg.TURN.Host,
+		Port:         s.cfg.TURN.Port,
+		TransportUDP: s.cfg.TURN.TransportUDP,
+		Profile:      string(s.cfg.Obf.Profile),
+		ObfKey:       s.cfg.Obf.Key,
+		ObfTiming:    s.cfg.Obf.Timing,
+		GetCreds:     udprelay.GetCredsFunc(getCreds),
+		ClientID:     s.cfg.ClientID,
+		TrafficStats: s.trafficStats(),
+	}
+	return udprelay.Run(ctx, dialer, prov, log, &s.connected, routeCallback, blacklistChecker, params, peer, local, s.total)
+}
+
+// localConn открывает канал до локального пира. Обычно это UDP-сокет на
+// cfg.Proxy.Listen, куда ходит внешний WireGuard. Если хост дал LocalPipe -
+// туннель живёт в этом же процессе, и петля через 127.0.0.1 не нужна.
+func (s *Session) localConn(ctx context.Context) (net.PacketConn, error) {
+	if s.deps.LocalPipe != nil {
+		s.deps.Logger.Infof("local peer: in-process pipe (no loopback socket)")
+		return s.deps.LocalPipe, nil
+	}
+	conn, err := (&net.ListenConfig{}).ListenPacket(ctx, "udp", s.cfg.Proxy.Listen)
+	if err != nil {
+		return nil, fmt.Errorf("udprelay listen %s: %w", s.cfg.Proxy.Listen, err)
+	}
+	return conn, nil
+}
+
+func (s *Session) trafficStats() *stats.Stats {
+	if s.traffic == nil {
+		return nil
+	}
+	return s.traffic.stats
+}
